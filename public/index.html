@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MEES | Official Store</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
+    body { background-color: #0f0f0f; color: #ffffff; line-height: 1.6; }
+    header { background: #000000; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e10600; position: sticky; top: 0; z-index: 10; }
+    .brand { font-size: 2rem; font-weight: bold; letter-spacing: 2px; color: #ffffff; }
+    .brand span { color: #e10600; }
+    .container { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: #1a1a1a; padding: 1.5rem; border-radius: 8px; border: 1px solid #2d2d2d; margin-bottom: 1.5rem; }
+    input, button { width: 100%; padding: 12px; margin-top: 10px; border-radius: 4px; border: none; font-size: 1rem; }
+    input { background: #2b2b2b; color: #fff; border: 1px solid #444; }
+    button { background: #e10600; color: #fff; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+    button:hover { background: #b80500; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .product-box { background: #222; padding: 1rem; border-radius: 6px; text-align: center; border: 1px solid #333; }
+    .price { color: #e10600; font-size: 1.2rem; font-weight: bold; margin: 8px 0; }
+    .cart-box { background: #242424; padding: 1rem; border-radius: 5px; margin-top: 1rem; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">M<span>EES</span></div>
+    <div id="userDisplay">Guest</div>
+  </header>
+
+  <div class="container">
+    <!-- 1. LOGIN SCREEN -->
+    <div id="loginStep" class="card">
+      <h2>MEES Account Login</h2>
+      <p style="color: #aaa; font-size: 0.9rem;">Apna detail bhariye shopping shuru karne ke liye</p>
+      <input type="text" id="custName" placeholder="Aapka Naam" />
+      <input type="email" id="custEmail" placeholder="Email Address" />
+      <input type="password" id="custPass" placeholder="Password" />
+      <button onclick="loginUser()">Login Karein</button>
+    </div>
+
+    <!-- 2. STORE & PRODUCTS -->
+    <div id="shopStep" class="hidden">
+      <div class="card">
+        <h2>Latest Sportswear & Shoes</h2>
+        <br />
+        <div id="productsDiv" class="grid"></div>
+      </div>
+
+      <!-- 3. CART & ORDER CONFIRMATION -->
+      <div class="card">
+        <h2>Aapka Cart</h2>
+        <div id="cartView" class="cart-box">Cart abhi khali hai.</div>
+        
+        <div id="addressForm" class="hidden">
+          <input type="text" id="phone" placeholder="Mobile Number" />
+          <input type="text" id="address" placeholder="Delivery Address (Ghar ka pata, City, Pincode)" />
+          <button onclick="placeOrder()">Order Confirm Karein</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. ORDER CONFIRMED SCREEN -->
+    <div id="successStep" class="card hidden" style="border: 1px solid #00e676;">
+      <h2 style="color: #00e676;">Badhai Ho! Order Confirm Ho Gaya</h2>
+      <div id="orderDetails" style="margin-top: 15px; font-size: 1.1rem;"></div>
+      <button onclick="continueShopping()" style="margin-top: 20px; background: #333;">Aur Shopping Karein</button>
+    </div>
+  </div>
+
+  <script>
+    let activeUser = null;
+    let cart = [];
+
+    // Login function
+    async function loginUser() {
+      const name = document.getElementById('custName').value;
+      const email = document.getElementById('custEmail').value;
+      const pass = document.getElementById('custPass').value;
+
+      if (!email || !pass) {
+        alert("Kripya email aur password dalein");
+        return;
+      }
+
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password: pass })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        activeUser = data.user;
+        document.getElementById('userDisplay').innerText = "Namaste, " + activeUser.name;
+        document.getElementById('loginStep').classList.add('hidden');
+        document.getElementById('shopStep').classList.remove('hidden');
+        getProducts();
+      }
+    }
+
+    // Products fetch function
+    async function getProducts() {
+      const res = await fetch('/api/products');
+      const items = await res.json();
+      const div = document.getElementById('productsDiv');
+      div.innerHTML = '';
+
+      items.forEach(p => {
+        div.innerHTML += `
+          <div class="product-box">
+            <h3>${p.name}</h3>
+            <div class="price">₹${p.price}</div>
+            <button onclick="addToCart(${p.id}, '${p.name}', ${p.price})">Add to Cart</button>
+          </div>
+        `;
+      });
+    }
+
+    // Add to Cart
+    function addToCart(id, name, price) {
+      cart.push({ id, name, price });
+      renderCart();
+    }
+
+    // Show Cart
+    function renderCart() {
+      const cartDiv = document.getElementById('cartView');
+      const formDiv = document.getElementById('addressForm');
+
+      if (cart.length === 0) {
+        cartDiv.innerHTML = "Cart abhi khali hai.";
+        formDiv.classList.add('hidden');
+        return;
+      }
+
+      let total = 0;
+      let listHtml = '<ul style="padding-left: 20px;">';
+      cart.forEach(item => {
+        listHtml += `<li>${item.name} - ₹${item.price}</li>`;
+        total += item.price;
+      });
+      listHtml += '</ul>';
+
+      cartDiv.innerHTML = `
+        ${listHtml}
+        <hr style="margin: 10px 0; border-color: #444;" />
+        <strong>Kul Items:</strong> ${cart.length} <br/>
+        <strong>Kul Rashi:</strong> ₹${total}
+      `;
+      formDiv.classList.remove('hidden');
+    }
+
+    // Place Order function (Order store tak jayega)
+    async function placeOrder() {
+      const address = document.getElementById('address').value;
+      const phone = document.getElementById('phone').value;
+
+      if (!address || !phone) {
+        alert("Mobile number aur address bharna zaroori hai");
+        return;
+      }
+
+      const total = cart.reduce((sum, i) => sum + i.price, 0);
+
+      const res = await fetch('/api/orders/place', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user: activeUser,
+          cartItems: cart,
+          totalAmount: total,
+          deliveryAddress: address,
+          phone: phone
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('shopStep').classList.add('hidden');
+        document.getElementById('successStep').classList.remove('hidden');
+
+        document.getElementById('orderDetails').innerHTML = `
+          <strong>Order ID:</strong> ${data.order.orderId} <br/>
+          <strong>Grahak ka Naam:</strong> ${data.order.customerName} <br/>
+          <strong>Phone:</strong> ${data.order.phone} <br/>
+          <strong>Pata:</strong> ${data.order.deliveryAddress} <br/>
+          <strong>Kul Bhugtan:</strong> ₹${data.order.totalAmount} <br/>
+          <strong>Status:</strong> Order Safalta Se Darj Hua!
+        `;
+      }
+    }
+
+    function continueShopping() {
+      cart = [];
+      renderCart();
+      document.getElementById('successStep').classList.add('hidden');
+      document.getElementById('shopStep').classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
